@@ -87,7 +87,14 @@ void task_process(){
 
 }
 static int init_server_configure(void){
-
+	cJSON*root=NULL;
+	FILE*fp=NULL;
+	if((fp=fopen(CONFIG_FILE,"r"))){
+		perror("Config file open");
+	
+	}
+	cJSON_
+	cJSON
 
 
 }
