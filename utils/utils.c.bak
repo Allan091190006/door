@@ -1,0 +1,161 @@
+#define SUCCESS_JASON_CODE "0000"
+#define HEARTBEAT_CMD_MAX 8
+#define HBCMD_SENDTIME_STR "sendTime"
+static void epoll_ADD(int epfd,int fd){
+	struct epoll_event ev;
+	ev.data.fd=fd;
+	ev.events=EPOLLIN|EPOLLET;
+	if(epoll_ctl(epfd,EPOLL_CTL_ADD,fd,&ev)==-1){
+		perror("epoll_ADD");
+		exit(-1);
+	}
+}
+static void epoll_DEL(int epfd,int fd){
+	struct epoll_event ev;
+	ev.data.fd=fd;
+	if(epoll_ctl(epfd,EPOLL_CTL_DEL,fd,&ev)==-1)
+	perror("epoll_DEL");
+
+}
+static void time_creator(int*fd ,long interval){
+	struct itimerspec time_new;
+	struct timespec now;
+	long long nosec;
+	int sec,us;
+	if((*fd=timerfd_create(CLOCK_MONOTONIC,TFD_NONBLOCK))<0){
+		perror("timer create");
+		exit(-1);
+	}
+	clock_gettime(CLOCK_MONOTONIC,&now);
+	sec=interval/1000000;
+	us=interval%1000000;
+	nosec=((long long)now.tv_sec+sec)*1000*1000*1000+now.tv_nsec+us*1000;
+	time_new->it_value.tv_sec=nosec/(1000*1000*1000);
+	time_new->it_value.tv_nsec=nosec%(1000*1000*1000);
+	time_new->it_interval.tv_sec=sec;
+	time_new->it_interval.tv_nsec=us*1000;
+	timerfd_settime(*fd,TFD_TIMER_ABSTIME,&time_new,0);
+}
+static int add_timer(int epfd,int timerfd){
+	int ret;
+	struct epoll_event ev;
+	ev.data.fd=timerfd;
+	ev.events=EPOLLIN|EPOLLET|EPOLLOUT;
+	if((ret=epoll_ctl(epfd,EPOLL_CTL_ADD,timerfd,&ev))<0)
+		return -1;
+	return 0;
+}
+static int del_timer(int epfd,int timerfd){
+	int ret;
+	struct epoll_event ev;
+	ev.data.fd=timerfd;
+	if((ret=epoll_ctl(epfd,EPOLL_CTL_DEL,timerfd,&ev))!=0)
+		return -1;
+	return 0;
+}
+
+static response_jparse(char*json){
+
+	cJSON *code, *msg, *cmd, *key, *val, *reqId;
+	size_t keylen;
+	int num, i;
+	int retval = -1;
+	cJSON *root = cJSON_Parse(json);
+
+	printf("Json Response parse...\n");
+	if (root == NULL) 
+	{
+		printf("%s:Invalid json text\n",__func__);
+		return retval;
+	}
+
+	code = cJSON_GetObjectItem(root, "code");
+	if (code == NULL || strcmp(code->valuestring, SUCCESS_JASON_CODE) != 0) 
+	{
+		printf("%s:Invalid code in heartbeat json\n",__func__);
+		return retval;
+	}
+
+	msg = cJSON_GetObjectItem(root, "msg");
+	if (msg == NULL) 
+	{
+		printf("%s:Null msg\n",__func__);
+		return 0;
+	}
+
+	num = cJSON_GetArraySize(msg);
+	if (num > HEARTBEAT_CMD_MAX) 
+		num = HEARTBEAT_CMD_MAX;
+
+	for (i = 0; i < num; i++) 
+	{
+		printf("%s:msg {%d}", __func__,i);
+		cmd = cJSON_GetArrayItem(msg, i);
+		if (cmd == NULL){
+			printf("is empty array\n");
+			return 0;
+		}
+
+		key = cJSON_GetObjectItem(cmd, "command");
+		if (key == NULL)
+		{
+			printf("no command msg\n");
+			return 0;
+		}else{
+			if (strncmp(key->valuestring,"open",strlen("open")) == 0){
+				JX102R_Open_Channel(channel_number, true, gSendToIP, gSendToPort);
+				printf("is remote open\n");
+			}else if (strncmp(key->valuestring, "close", strlen("close")) == 0){
+				JX102R_Close_Channel(channel_number,  gSendToIP, gSendToPort);
+				printf("is remote close\n");
+			}else{
+				printf("error command %s\n",key->valuestring);
+			}
+		}
+
+		reqId = cJSON_GetObjectItem(cmd, "reqId");
+		if (reqId == NULL){
+			printf("%s:reqId  not found \n",__func__);
+			return 0;
+		}
+
+		if (key->valuestring != NULL){
+			if(strncmp(key->valuestring, HBCMD_SENDTIME_STR, keylen) == 0){
+				char *time_msg = serialize_json_sendtime(STORE_ID, mac_addr, reqId->valuestring);
+				printf("time_msg: {%s}\n", time_msg);
+				send_heartbeat_post_to_server(heartbeat_send_URL, time_msg, strlen(time_msg));
+			}
+		}else {
+			printf("NULL HBCMD_SENDTIME_STR \n");
+			return 0;
+		}
+	return retval;
+}
+static long get_systime(){
+	struct timeval tv;
+	long value=0;
+	memset(&tv,0,sizeof(tv));
+	gettimeofday(&tv,NULL);
+	value=tv.tv_sec*1000+tv.tv_usec;
+	return value;
+}
+char * serialize_json_QR(const char * token,const char*gateid){
+	cJSON*root=NULL;
+	char*val=NULL;
+	long long time_stamp=0;
+	static char tv_str[64];
+	memset(tv_str,0,64);
+	if((root=cJSON_CreateObject())==NULL){
+		printf("%s:obj create\n",__func__);
+		return NULL;
+	}
+	cJSON_AddStringToObject(root,"token",token);
+	cJSON_AddStringToObject(root,"gateid",gateid);
+	time_stamp=get_systime();
+	snprintf(tv_str,63,"%llu",time_stamp);
+	cJSON_AddStringToObject(root,"timestamp",tv_str);
+	json=cJSON_Print(root);
+	if(root)
+		cJSON_Delete(root);
+	return json;
+}
