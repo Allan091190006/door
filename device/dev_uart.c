@@ -15,24 +15,19 @@ static int uart_write(struct dev_handle *handle, U8 *data, int len);
 static LY_STATUS uart_close(struct dev_handle *handle);
 AUTO_LOCK_DECLEAR();
 
-DEV_HANDLE* dev_uart_open(int index, data_callback_func cb)    //we need a private struct pointer
+DEV_HANDLE* dev_uart_open(char *com_name, data_callback_func cb)    //we need a private struct pointer
 {
     DEV_UART_S *dev;
 	struct termios oldios,newios;
-	char base[10]={0};
     dev = (DEV_UART_S*)malloc(sizeof (DEV_UART_S));
     if(dev == NULL) return NULL;
-    dev->handle.read = uart_read;
-    dev->handle.write = uart_write;
-    dev->handle.close = uart_close;
-    dev->fd = 0;
     //TODO: open uart device.
 #ifdef
 
 #else
 
 #endif
-	if((dev->fd=open(base,O_RDWR|O_NOCTTY|O_NDELAY))<0){
+	if((dev->fd=open(com_name,O_RDWR|O_NOCTTY|O_NDELAY))<0){
 		perror("uart dev open");
 		exit(-1);
 	}

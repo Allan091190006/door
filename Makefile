@@ -9,14 +9,14 @@ TARGET  := audio_server
  
 #compile and lib parameter
 # 编译参数
-CC      := arm-arago-linux-gnueabi-gcc
-LIBS    := -lm -lrt -lpthread -lcurses
+CC      := arm-linux-gnueabihf-gcc
+LIBS    := -lm -lrt -lpthread  -lasound
 LDFLAGS:= 
 DEFINES:=
 INCLUDE:= -I. \
 			-I./loaddsp/
 CFLAGS  := -g -Wall -O3 $(DEFINES) $(INCLUDE)
-CXXFLAGS:= $(CFLAGS) -DHAVE_CONFIG_H
+CXXFLAGS:= $(CFLAGS) 
  
  
 #i think you should do anything here

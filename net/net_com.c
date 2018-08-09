@@ -6,6 +6,8 @@
 #include<netinet/in.h>
 #define MAX_MSG_LEN 1024
 RecMsgStruct chunk_heartbeat;
+int sck_add;
+
 typedef struct RecMegStructType {
 	char *memory;
 	size_t size;
@@ -58,6 +60,51 @@ int udp_recv(int dwlen, char *ip, int port)
 	}
 	return ret;
 
+}
+int WriteData(TSendData *dData)
+{
+	int len;
+	int headLen = 9;
+	len = dData->Block_len;
+
+	dData->DevAdr = SWAP_WORD(dData->DevAdr);
+	dData->SorAdr = SWAP_WORD(dData->SorAdr);
+	dData->Sequence = SWAP_WORD(dData->Sequence);
+
+	dData->Crc16 = GetCrc16((char *)dData, len + 9);
+	memset(SendDataBuffer, 0, SEND_BUF_SIZE);
+	memcpy(SendDataBuffer, (char *)dData, sizeof(TSendData));
+
+	SendDataBuffer[headLen + len] = dData->Crc16 >> 8;
+	SendDataBuffer[headLen + len + 1] = dData->Crc16 & 0xff;
+	len = len + 11;
+	return udp_send(len);
+}
+
+int ReadData(TReceiveData *aData)
+{
+	//memset(aData, 0, sizeof(aData));
+	memset((void *)RecDataBuffer, 0, sizeof(RecDataBuffer));
+	memset(gFromIP, 0, sizeof(gFromIP));
+	int ret = udp_recv(2000, gFromIP, gFromPort);
+	if (ret < 0)
+	{
+		FileLog::GetFileLog().rotate_logger()->error("udp_recv fail ");
+		return -4;
+	}
+	memset(aData, 0, sizeof(TReceiveData));
+	memcpy(aData, RecDataBuffer, ret);
+	//receive data block length
+	int i = ret - 9;
+
+	aData->Crc16 = ((aData->DataBlock[i - 2] & 0xff) << 8) | (aData->DataBlock[i - 1] & 0xff);
+	aData->DataBlock[i - 2] = '\0';
+	if (!CheckCRC16((char *)aData, i - 2 + 9, aData->Crc16))
+	{
+		FileLog::GetFileLog().rotate_logger()->error("receive data, check CRC fail ");
+		return -3;
+	}
+	return 0;
 }
 static int tcp_init()
 {
